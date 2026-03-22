@@ -13,6 +13,7 @@ Engine :: struct {
     shader: Shader,
     mesh: Mesh,
     light_shader: Shader,
+    terrain_shader: Shader,
     texture: Texture,
     camera: Camera,
     light: Light,
@@ -102,11 +103,16 @@ main_loop :: proc(engine: ^Engine) {
         }
         
         use(&engine.light_shader)
+        use(&engine.terrain_shader)
         
         // upload view and projection to light shader
         light_view_loc := GL.GetUniformLocation(engine.light_shader.id, "view")
         GL.UniformMatrix4fv(light_view_loc, 1, GL.FALSE, &flat_view[0])
         set_mat4(&engine.light_shader, "projection", &projection)
+        
+        terrain_view_loc := GL.GetUniformLocation(engine.terrain_shader.id, "view")
+        GL.UniformMatrix4fv(terrain_view_loc, 1, GL.FALSE, &flat_view[0])
+        set_mat4(&engine.terrain_shader, "projection", &projection)
         
         update_camera(&engine.camera)
         update_keyboard_input(engine, &engine.camera)
@@ -127,8 +133,10 @@ run :: proc(engine: ^Engine) {
     fmt.println("shader ok") 
     if !init_shader(&engine.light_shader, "shaders/light.vs", "shaders/light.fs") do return
     fmt.println("light shader ok")
+    if !init_shader(&engine.terrain_shader, "shaders/terrain.vs", "shaders/terrain.fs") do return
+    fmt.println("terrain shader ok")
     create_mesh_cube(&engine.mesh)
-    create_mesh_terrain(&engine.terrain_mesh, 100, 100)
+    create_mesh_terrain(&engine.terrain_mesh, 100, 100, 2.0, 0.8)
     fmt.println("mesh ok")
     if !init_light(&engine.light) do return
     fmt.printfln("light ok")
@@ -144,7 +152,7 @@ run :: proc(engine: ^Engine) {
         rotation_axis = vec3{0.0, 1.0, 0.0},
         scale = vec3{100.0, 100.0, 100.0},
         mesh = &engine.terrain_mesh,
-        shader = &engine.shader
+        shader = &engine.terrain_shader
     }
     append(&engine.scene.objects, terrain)
 
