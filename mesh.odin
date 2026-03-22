@@ -95,6 +95,8 @@ upload_mesh :: proc(mesh: ^Mesh) -> bool {
     GL.VertexAttribPointer(2, 2, GL.FLOAT, GL.FALSE, 8 * size_of(f32), uintptr(6 * size_of(f32)))
     GL.EnableVertexAttribArray(2)
 
+    delete(mesh.vertices)
+
     return true
 }
 

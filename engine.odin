@@ -17,8 +17,14 @@ Engine :: struct {
     texture: Texture,
     camera: Camera,
     light: Light,
+    scene: Scene,
 
     wireframe: bool
+}
+
+Scene :: struct {
+    objects: [dynamic]GameObject,
+    lights: [dynamic]Light,
 }
 
 cube_positions := [10]vec3 {
@@ -103,16 +109,20 @@ main_loop :: proc(engine: ^Engine) {
         
         // Render the cubes around the scene
         GL.BindVertexArray(engine.mesh.VAO);
-        for i: u32 = 0; i < 10; i += 1 {
-            translate := linalg.matrix4_translate_f32(cube_positions[i])
-            angle: f32 = 20.0 * f32(i)
-            rotate := linalg.matrix4_rotate_f32(linalg.to_radians(angle), vec3{1.0, 0.3, 0.5})
-            model := translate * rotate
-            model_loc := GL.GetUniformLocation(engine.shader.id, "model")
-            flat_model := linalg.matrix_flatten(model)
-            GL.UniformMatrix4fv(model_loc, 1, GL.FALSE, &flat_model[0])
+        // for i: u32 = 0; i < 10; i += 1 {
+        //     translate := linalg.matrix4_translate_f32(cube_positions[i])
+        //     angle: f32 = 20.0 * f32(i)
+        //     rotate := linalg.matrix4_rotate_f32(linalg.to_radians(angle), vec3{1.0, 0.3, 0.5})
+        //     model := translate * rotate
+        //     model_loc := GL.GetUniformLocation(engine.shader.id, "model")
+        //     flat_model := linalg.matrix_flatten(model)
+        //     GL.UniformMatrix4fv(model_loc, 1, GL.FALSE, &flat_model[0])
             
-            GL.DrawArrays(GL.TRIANGLES, 0, engine.mesh.vertex_count)
+        //     GL.DrawArrays(GL.TRIANGLES, 0, engine.mesh.vertex_count)
+        //     draw_object()
+        // }
+        for &obj in engine.scene.objects {
+            draw_object(&obj)
         }
         
         use(&engine.light_shader)
@@ -163,6 +173,18 @@ run :: proc(engine: ^Engine) {
     if !init_camera(&engine.camera) do return
     fmt.printfln("Camera ok")
 
+    // Creating GameObjects
+    for i: u32 = 0; i < 10; i += 1 {
+        cubes := GameObject {
+            position        = cube_positions[i],
+            rotation_angle  = 20.0 * f32(i),
+            rotation_axis   = vec3{1.0, 0.3, 0.5},
+            scale           = vec3{1.0, 1.0, 1.0},
+            mesh            = &engine.mesh,
+            shader          = &engine.shader
+        }
+        append(&engine.scene.objects, cubes)
+    }
 
     main_loop(engine)
     cleanup(engine)
