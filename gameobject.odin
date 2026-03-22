@@ -26,5 +26,10 @@ draw_object :: proc(gameobject: ^GameObject) {
     GL.UniformMatrix4fv(model_location, 1, GL.FALSE, &flat_model[0])
 
     GL.BindVertexArray(gameobject.mesh.VAO)
-    GL.DrawArrays(GL.TRIANGLES, 0, gameobject.mesh.vertex_count)
+
+    if gameobject.mesh.use_indices {
+        GL.DrawElements(GL.TRIANGLES, gameobject.mesh.vertex_count, GL.UNSIGNED_INT, nil)
+    } else {
+        GL.DrawArrays(GL.TRIANGLES, 0, gameobject.mesh.vertex_count)
+    }
 }

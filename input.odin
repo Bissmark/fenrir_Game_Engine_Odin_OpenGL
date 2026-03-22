@@ -9,16 +9,16 @@ update_keyboard_input :: proc(engine: ^Engine, camera: ^Camera) {
     key_states := SDL.GetKeyboardState(nil)
 
     if key_states[SDL.Scancode.W] {
-        position += speed * front
+        position += speed * engine.delta_time * front
     }
     if key_states[SDL.Scancode.S] {
-        position -= speed * front
+        position -= speed * engine.delta_time * front
     }
     if key_states[SDL.Scancode.A] {
-        position -= linalg.normalize(linalg.cross(front, up)) * speed
+        position -= linalg.normalize(linalg.cross(front, up)) * engine.delta_time * speed
     }
     if key_states[SDL.Scancode.D] {
-        position += linalg.normalize(linalg.cross(front, up)) * speed
+        position += linalg.normalize(linalg.cross(front, up)) * engine.delta_time * speed
     }
 
     if key_states[SDL.Scancode.F] {

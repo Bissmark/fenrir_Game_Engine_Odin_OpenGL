@@ -27,7 +27,7 @@ init_camera :: proc(camera: ^Camera) -> bool {
     camera.front = {0.0, 0.0, -1.0}
     camera.camera_right = linalg.normalize(linalg.cross(camera.up, camera.direction))
     camera.camera_up = linalg.cross(camera.direction, camera.camera_right)
-    camera.speed = 0.05
+    camera.speed = 5.0
     camera.yaw = -90.0
     camera.pitch = 0.0
     camera.fov = 45.0

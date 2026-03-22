@@ -5,25 +5,23 @@ import GL "vendor:OpenGL"
 import SDL "vendor:sdl3"
 
 Light :: struct {
-    VAO: u32,
     position: vec3,
     color: vec3,
     diffuse_color: vec3,
     ambient_color: vec3,
     specular_color: vec3,
+
+    mesh: Mesh,
+
 }
 
-init_light :: proc(light: ^Light, mesh_vbo: u32) -> bool {
+init_light :: proc(light: ^Light) -> bool {
     light.position = {1.2, 1.0, 2.0}
     light.ambient_color = {0.2, 0.2, 0.2}
     light.diffuse_color = {0.5, 0.5, 0.5}
     light.specular_color = {1.0, 1.0, 1.0}
 
-    GL.GenVertexArrays(1, &light.VAO)
-    GL.BindVertexArray(light.VAO)
-    GL.BindBuffer(GL.ARRAY_BUFFER, mesh_vbo)
-    GL.VertexAttribPointer(0, 3, GL.FLOAT, GL.FALSE, 8 * size_of(f32), 0)
-    GL.EnableVertexAttribArray(0)
+    create_mesh_cube(&light.mesh)
 
     return true
 }
