@@ -97,59 +97,87 @@ create_mesh_cube :: proc(mesh: ^Mesh) {
 }
 
 create_mesh_terrain :: proc(mesh: ^Mesh, width, depth: u32, scale, max_height: f32) {
-    // Vertex Loop
+    heightmap := make([]f32, width * depth)
+    defer delete(heightmap)
+
     for i: u32 = 0; i < width; i += 1 {
-        for j: u32 = 0; j < depth; j+= 1 {
+        for j: u32 = 0; j < depth; j += 1 {
             x := f32(i) / f32(width)
             z := f32(j) / f32(depth)
-            // Flat land noise - high frequency, low amplitude (what you have now)
-            flat := (fbm(x * 0.5, z * 0.5) + 1.0) * 0.5 * 0.05
 
-            // Mountain mask - very low frequency so mountains are large and spread out
-            mask := (fbm(x * 0.8, z * 0.8) + 1.0) * 0.5
+            flat     := (fbm(x * 0.5, z * 0.5) + 1.0) * 0.5 * 0.05
+            mask     := (fbm(x * 0.8, z * 0.8) + 1.0) * 0.5
+            t        := smoothstep(0.55, 0.75, mask)
+            mountain := math.pow((fbm(x * 3.0, z * 3.0) + 1.0) * 0.5, f32(2.5))
 
-            // Sharpen the mask so transition is smoother - smoothstep between 0.4 and 0.7
-            t := smoothstep(0.55, 0.75, mask)
-
-            // Mountain noise - medium frequency, will be raised to a power for sharp peaks
-            mountain := math.pow((fbm(x * 3.0, z * 3.0) + 1.0) * 0.5, 2.5)
-
-            // Blend flat and mountain based on mask
-            height := _lerp(flat, mountain * 0.6, t)
-
-            // Positions
-            append(&mesh.vertices, x)
-            append(&mesh.vertices, height * max_height)
-            append(&mesh.vertices, z)
-
-            // Normals and TexCoords
-            append(&mesh.vertices, f32(0.0))
-            append(&mesh.vertices, f32(1.0))
-            append(&mesh.vertices, f32(0.0))
-
-            append(&mesh.vertices, x)
-            append(&mesh.vertices, z)
+            heightmap[i * depth + j] = _lerp(flat, mountain * 0.6, t) * max_height
         }
     }
 
-    // Index Loop
     for i: u32 = 0; i < width - 1; i += 1 {
-        for j: u32 = 0; j < depth - 1; j+= 1 {
-            row_1 := j * width 
-            row_2 := (j + 1) * width
+        for j: u32 = 0; j < depth - 1; j += 1 {
 
-            append(&mesh.indices, u32(row_1 + i))
-            append(&mesh.indices, u32(row_1 + i + 1))
-            append(&mesh.indices, u32(row_2 + i + 1))
-            append(&mesh.indices, u32(row_1 + i))
-            append(&mesh.indices, u32(row_2 + i + 1))
-            append(&mesh.indices, u32(row_2 + i))
+            // The x/z positions of the 4 corners of this quad
+            x0 := f32(i)     / f32(width)
+            x1 := f32(i + 1) / f32(width)
+            z0 := f32(j)     / f32(depth)
+            z1 := f32(j + 1) / f32(depth)
+
+            // The heights of the 4 corners, looked up from our heightmap
+            h_bl := heightmap[i       * depth + j    ]  // bottom-left
+            h_br := heightmap[(i + 1) * depth + j    ]  // bottom-right
+            h_tl := heightmap[i       * depth + j + 1]  // top-left
+            h_tr := heightmap[(i + 1) * depth + j + 1]  // top-right
+
+            // Build vec3s for each corner so we can do math on them
+            bl := vec3{x0 * f32(width), h_bl, z0 * f32(depth)}
+            br := vec3{x1 * f32(width), h_br, z0 * f32(depth)}
+            tl := vec3{x0 * f32(width), h_tl, z1 * f32(depth)}
+            tr := vec3{x1 * f32(width), h_tr, z1 * f32(depth)}
+
+            // Alternate the diagonal split direction per quad
+            alt := (i + j) % 2 == 0
+
+            if alt {
+                append_flat_triangle(mesh, bl, tl, tr)
+                append_flat_triangle(mesh, bl, tr, br)
+            } else {
+                append_flat_triangle(mesh, bl, tl, br)
+                append_flat_triangle(mesh, tl, tr, br)
+            }
         }
     }
 
-    mesh.use_indices = true
-    mesh.vertex_count = i32(len(mesh.indices))
+    mesh.use_indices  = false
+    mesh.vertex_count = i32(len(mesh.vertices) / 8)
     upload_mesh(mesh)
+}
+
+append_flat_triangle :: proc(mesh: ^Mesh, v1, v2, v3: vec3) {
+    // Calculate the two edge vectors from v1
+    edge1 := v2 - v1
+    edge2 := v3 - v1
+
+    // Cross product gives a vector perpendicular to the triangle face
+    // Normalize it so its length is 1, which is required for lighting math
+    normal := linalg.normalize(linalg.cross(edge1, edge2))
+
+    // Append all 3 vertices, each with the same flat normal
+    // Format: pos.x, pos.y, pos.z, norm.x, norm.y, norm.z, tex.u, tex.v
+    append_vertex(mesh, v1, normal)
+    append_vertex(mesh, v2, normal)
+    append_vertex(mesh, v3, normal)
+}
+
+append_vertex :: proc(mesh: ^Mesh, pos, normal: vec3) {
+    append(&mesh.vertices, pos.x)
+    append(&mesh.vertices, pos.y)
+    append(&mesh.vertices, pos.z)
+    append(&mesh.vertices, normal.x)
+    append(&mesh.vertices, normal.y)
+    append(&mesh.vertices, normal.z)
+    append(&mesh.vertices, pos.x)  // use x/z as tex coords
+    append(&mesh.vertices, pos.z)
 }
 
 cleanup_mesh :: proc(mesh: ^Mesh) {

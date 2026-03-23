@@ -21,9 +21,8 @@ draw_object :: proc(gameobject: ^GameObject) {
     rotate := linalg.matrix4_rotate_f32(linalg.to_radians(angle), gameobject.rotation_axis)
     scale := linalg.matrix4_scale_f32(gameobject.scale)
     model := translate * rotate * scale
-    model_location := GL.GetUniformLocation(gameobject.shader.id, "model")
     flat_model := linalg.matrix_flatten(model)
-    GL.UniformMatrix4fv(model_location, 1, GL.FALSE, &flat_model[0])
+    GL.UniformMatrix4fv(gameobject.shader.loc_model, 1, GL.FALSE, &flat_model[0])
 
     GL.BindVertexArray(gameobject.mesh.VAO)
 

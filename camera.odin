@@ -20,7 +20,7 @@ Camera :: struct {
 }
 
 init_camera :: proc(camera: ^Camera) -> bool {
-    camera.position = {0.0, 0.0, 3.0}
+    camera.position = {0.0, 20.0, 3.0}
     camera.target = {0.0, 0.0, 0.0}
     camera.direction = linalg.normalize(camera.position - camera.target)
     camera.up = {0.0, 1.0, 0.0}

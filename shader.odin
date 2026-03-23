@@ -6,7 +6,10 @@ import "core:strings"
 import GL "vendor:OpenGL"
 
 Shader :: struct {
-    id: u32
+    id:             u32,
+    loc_model:      i32,
+    loc_view:       i32,
+    loc_projection: i32,
 }
 
 use :: proc(shader: ^Shader) {

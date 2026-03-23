@@ -16,7 +16,7 @@ Light :: struct {
 }
 
 init_light :: proc(light: ^Light) -> bool {
-    light.position = {1.2, 1.0, 2.0}
+    light.position = {50.0, 50.0, 50.0}
     light.ambient_color = {0.2, 0.2, 0.2}
     light.diffuse_color = {0.5, 0.5, 0.5}
     light.specular_color = {1.0, 1.0, 1.0}
