@@ -1,6 +1,7 @@
 package fenrir
 
 import "core:fmt"
+import "core:math"
 import "core:math/linalg"
 import SDL "vendor:sdl3"
 import GL "vendor:OpenGL"
@@ -24,6 +25,7 @@ Engine :: struct {
     delta_time: f32,
 
     terrain_mesh: Mesh,
+    terrain_heights: []f32,
 }
 
 Scene :: struct {
@@ -109,6 +111,7 @@ main_loop :: proc(engine: ^Engine) {
         GL.UniformMatrix4fv(engine.terrain_shader.loc_projection, 1, GL.FALSE, &flat_projection[0])
         set_vec3(&engine.terrain_shader, "lightPos",   &engine.light.position)
         set_vec3(&engine.terrain_shader, "lightColor", &engine.light.diffuse_color)
+        set_vec3(&engine.terrain_shader, "viewPos", &engine.camera.position)
 
         terrain_color := vec3{0.2, 0.6, 0.15}
         set_vec3(&engine.terrain_shader, "terrainColor", &terrain_color)
@@ -117,6 +120,8 @@ main_loop :: proc(engine: ^Engine) {
         for &obj in engine.scene.objects {
             draw_object(&obj)
         }
+
+        //move_sun(engine, &engine.scene.objects[11])
         
         update_camera(&engine.camera)
         update_keyboard_input(engine, &engine.camera)
@@ -143,13 +148,17 @@ run :: proc(engine: ^Engine) {
     engine.light_shader.loc_view = GL.GetUniformLocation(engine.light_shader.id, "view")
     engine.light_shader.loc_model = GL.GetUniformLocation(engine.light_shader.id, "model")
     engine.light_shader.loc_projection = GL.GetUniformLocation(engine.light_shader.id, "projection")
-    if !init_shader(&engine.terrain_shader, "shaders/terrain.vs", "shaders/terrain.fs") do return
-    fmt.println("terrain shader ok")
+    if !init_shader(&engine.terrain_shader, "shaders/terrain.vs", "shaders/terrain.fs", "shaders/terrain.gs") do return
+    // fmt.println("terrain shader ok id: ", engine.terrain_shader.id)
     engine.terrain_shader.loc_view = GL.GetUniformLocation(engine.terrain_shader.id, "view")
     engine.terrain_shader.loc_model = GL.GetUniformLocation(engine.terrain_shader.id, "model")
     engine.terrain_shader.loc_projection = GL.GetUniformLocation(engine.terrain_shader.id, "projection")
+    fmt.println("terrain loc_model:", engine.terrain_shader.loc_model)
+    fmt.println("terrain loc_view:", engine.terrain_shader.loc_view)
+    fmt.println("terrain loc_projection:", engine.terrain_shader.loc_projection)
     create_mesh_cube(&engine.mesh)
-    create_mesh_terrain(&engine.terrain_mesh, 100, 100, 2.0, 30.0)
+    // create_mesh_terrain(&engine.terrain_mesh, 100, 100, 2.0, 100.0)
+    create_mesh_terrain(&engine.terrain_mesh, 100, 100) //, 2.0, 100.0)
     fmt.println("mesh ok")
     if !init_light(&engine.light) do return
     fmt.printfln("light ok")
@@ -158,9 +167,25 @@ run :: proc(engine: ^Engine) {
     if !init_camera(&engine.camera) do return
     fmt.printfln("Camera ok")
 
+    // Allocate and fill CPU heightmap for gameplay use
+    engine.terrain_heights = make([]f32, 256 * 256)
+    for i: u32 = 0; i < 256; i += 1 {
+        for j: u32 = 0; j < 256; j += 1 {
+            x := f32(i) / 256.0  // 0..1
+            z := f32(j) / 256.0
+
+            flatland := (fbm(x * 2.0,  z * 2.0)  + 1.0) * 0.5 * 0.05
+            mask     := (fbm(x * 1.0,  z * 1.0)  + 1.0) * 0.5
+            t        := smoothstep(0.55, 0.75, mask)
+            mountain := math.pow((fbm(x * 2.5, z * 2.5) + 1.0) * 0.5, f32(1.5))
+
+            engine.terrain_heights[i * 256 + j] = _lerp(flatland * 4.0, mountain * 40.0, t)
+        }
+    }
+
     // Creating GameObjects
     terrain := GameObject {
-        position = vec3{0.0, 0.0, 0.0},
+        position = vec3{-50.0, 0.0, -50.0},
         rotation_angle = 0,
         rotation_axis = vec3{0.0, 1.0, 0.0},
         scale = vec3{1.0, 1.0, 1.0},

@@ -96,48 +96,20 @@ create_mesh_cube :: proc(mesh: ^Mesh) {
     upload_mesh(mesh)
 }
 
-create_mesh_terrain :: proc(mesh: ^Mesh, width, depth: u32, scale, max_height: f32) {
-    heightmap := make([]f32, width * depth)
-    defer delete(heightmap)
-
-    for i: u32 = 0; i < width; i += 1 {
-        for j: u32 = 0; j < depth; j += 1 {
-            x := f32(i) / f32(width)
-            z := f32(j) / f32(depth)
-
-            flat     := (fbm(x * 0.5, z * 0.5) + 1.0) * 0.5 * 0.05
-            mask     := (fbm(x * 0.8, z * 0.8) + 1.0) * 0.5
-            t        := smoothstep(0.55, 0.75, mask)
-            mountain := math.pow((fbm(x * 3.0, z * 3.0) + 1.0) * 0.5, f32(2.5))
-
-            heightmap[i * depth + j] = _lerp(flat, mountain * 0.6, t) * max_height
-        }
-    }
-
+create_mesh_terrain :: proc(mesh: ^Mesh, width, depth: u32) {
     for i: u32 = 0; i < width - 1; i += 1 {
         for j: u32 = 0; j < depth - 1; j += 1 {
-
-            // The x/z positions of the 4 corners of this quad
             x0 := f32(i)     / f32(width)
             x1 := f32(i + 1) / f32(width)
             z0 := f32(j)     / f32(depth)
             z1 := f32(j + 1) / f32(depth)
 
-            // The heights of the 4 corners, looked up from our heightmap
-            h_bl := heightmap[i       * depth + j    ]  // bottom-left
-            h_br := heightmap[(i + 1) * depth + j    ]  // bottom-right
-            h_tl := heightmap[i       * depth + j + 1]  // top-left
-            h_tr := heightmap[(i + 1) * depth + j + 1]  // top-right
+            bl := vec3{x0 * f32(width), 0.0, z0 * f32(depth)}
+            br := vec3{x1 * f32(width), 0.0, z0 * f32(depth)}
+            tl := vec3{x0 * f32(width), 0.0, z1 * f32(depth)}
+            tr := vec3{x1 * f32(width), 0.0, z1 * f32(depth)}
 
-            // Build vec3s for each corner so we can do math on them
-            bl := vec3{x0 * f32(width), h_bl, z0 * f32(depth)}
-            br := vec3{x1 * f32(width), h_br, z0 * f32(depth)}
-            tl := vec3{x0 * f32(width), h_tl, z1 * f32(depth)}
-            tr := vec3{x1 * f32(width), h_tr, z1 * f32(depth)}
-
-            // Alternate the diagonal split direction per quad
             alt := (i + j) % 2 == 0
-
             if alt {
                 append_flat_triangle(mesh, bl, tl, tr)
                 append_flat_triangle(mesh, bl, tr, br)
@@ -152,6 +124,64 @@ create_mesh_terrain :: proc(mesh: ^Mesh, width, depth: u32, scale, max_height: f
     mesh.vertex_count = i32(len(mesh.vertices) / 8)
     upload_mesh(mesh)
 }
+
+// Old CPU terrain generation
+// create_mesh_terrain :: proc(mesh: ^Mesh, width, depth: u32, scale, max_height: f32) {
+//     heightmap := make([]f32, width * depth)
+//     defer delete(heightmap)
+
+//     for i: u32 = 0; i < width; i += 1 {
+//         for j: u32 = 0; j < depth; j += 1 {
+//             x := f32(i) / f32(width)
+//             z := f32(j) / f32(depth)
+
+//             flat     := (fbm(x * 0.5, z * 0.5) + 1.0) * 0.5 * 0.05
+//             mask     := (fbm(x * 0.8, z * 0.8) + 1.0) * 0.5
+//             t        := smoothstep(0.65, 0.80, mask)
+//             mountain := math.pow((fbm(x, z) + 1.0) * 0.5, f32(2.5))
+
+//             heightmap[i * depth + j] = _lerp(flat * 4.0, mountain * 60.0, t)
+//         }
+//     }
+
+//     for i: u32 = 0; i < width - 1; i += 1 {
+//         for j: u32 = 0; j < depth - 1; j += 1 {
+
+//             // The x/z positions of the 4 corners of this quad
+//             x0 := f32(i)     / f32(width)
+//             x1 := f32(i + 1) / f32(width)
+//             z0 := f32(j)     / f32(depth)
+//             z1 := f32(j + 1) / f32(depth)
+
+//             // The heights of the 4 corners, looked up from our heightmap
+//             h_bl := heightmap[i       * depth + j    ]  // bottom-left
+//             h_br := heightmap[(i + 1) * depth + j    ]  // bottom-right
+//             h_tl := heightmap[i       * depth + j + 1]  // top-left
+//             h_tr := heightmap[(i + 1) * depth + j + 1]  // top-right
+
+//             // Build vec3s for each corner so we can do math on them
+//             bl := vec3{x0 * f32(width), h_bl, z0 * f32(depth)}
+//             br := vec3{x1 * f32(width), h_br, z0 * f32(depth)}
+//             tl := vec3{x0 * f32(width), h_tl, z1 * f32(depth)}
+//             tr := vec3{x1 * f32(width), h_tr, z1 * f32(depth)}
+
+//             // Alternate the diagonal split direction per quad
+//             alt := (i + j) % 2 == 0
+
+//             if alt {
+//                 append_flat_triangle(mesh, bl, tl, tr)
+//                 append_flat_triangle(mesh, bl, tr, br)
+//             } else {
+//                 append_flat_triangle(mesh, bl, tl, br)
+//                 append_flat_triangle(mesh, tl, tr, br)
+//             }
+//         }
+//     }
+
+//     mesh.use_indices  = false
+//     mesh.vertex_count = i32(len(mesh.vertices) / 8)
+//     upload_mesh(mesh)
+// }
 
 append_flat_triangle :: proc(mesh: ^Mesh, v1, v2, v3: vec3) {
     // Calculate the two edge vectors from v1

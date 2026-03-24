@@ -3,6 +3,7 @@ package fenrir
 import "core:os"
 import "core:log"
 import "core:strings"
+import "core:fmt"
 import GL "vendor:OpenGL"
 
 Shader :: struct {
@@ -85,24 +86,20 @@ set_mat4 :: proc(shader: ^Shader, name: cstring, mat: ^mat4) {
 
 check_compile_errors :: proc(shader: u32, type: string) {
     success: i32
-    info_log: [1024]u8 // char equivalent
+    info_log: [1024]u8
 
     if type != "PROGRAM" {
         GL.GetShaderiv(shader, GL.COMPILE_STATUS, &success)
-        if success == 0 {
-            GL.GetShaderInfoLog(shader, 1024, nil, &info_log[0])
-            log.error("SHADER ERROR:", type, string(info_log[:]))
-        }
+        GL.GetShaderInfoLog(shader, 1024, nil, &info_log[0])
+        fmt.println(type, "compile status:", success, "log:", string(info_log[:]))
     } else {
         GL.GetProgramiv(shader, GL.LINK_STATUS, &success)
-        if success == 0 {
-            GL.GetProgramInfoLog(shader, 1024, nil, &info_log[0])
-            log.error("PROGRAM LINKING ERROR:", type, string(info_log[:]))
-        }
+        GL.GetProgramInfoLog(shader, 1024, nil, &info_log[0])
+        fmt.println(type, "link status:", success, "log:", string(info_log[:]))
     }
 }
 
-init_shader :: proc(shader: ^Shader, vertex_path: string, fragment_path: string) -> bool {    
+init_shader :: proc(shader: ^Shader, vertex_path, fragment_path: string, geometry_path: string = "") -> bool {    
     vertex_data, vertex_ok := os.read_entire_file(vertex_path)
     fragment_data, fragment_ok := os.read_entire_file(fragment_path)
 
@@ -118,23 +115,40 @@ init_shader :: proc(shader: ^Shader, vertex_path: string, fragment_path: string)
     vertex_shader_code: cstring = strings.clone_to_cstring(string(vertex_data))
     fragment_shader_code: cstring = strings.clone_to_cstring(string(fragment_data))
 
-    vertex, fragment: u32
+    vertex, fragment, geometry: u32
 
-    vertex =  GL.CreateShader(GL.VERTEX_SHADER)
+    vertex = GL.CreateShader(GL.VERTEX_SHADER)
     GL.ShaderSource(vertex, 1, &vertex_shader_code, nil)
     GL.CompileShader(vertex)
-    check_compile_errors(vertex, "VERTEX");
+    check_compile_errors(vertex, "VERTEX")
 
     fragment = GL.CreateShader(GL.FRAGMENT_SHADER)
     GL.ShaderSource(fragment, 1, &fragment_shader_code, nil)
     GL.CompileShader(fragment)
-    check_compile_errors(fragment, "FRAGMENT");
-    
+    check_compile_errors(fragment, "FRAGMENT")
+
     shader.id = GL.CreateProgram()
     GL.AttachShader(shader.id, vertex)
     GL.AttachShader(shader.id, fragment)
+
+    // Only compile and attach geometry shader if a path was provided
+    if geometry_path != "" {
+        geometry_data, geometry_ok := os.read_entire_file(geometry_path)
+        if !geometry_ok {
+            log.error("Failed to read geometry shader file")
+            return false
+        }
+        geometry_shader_code: cstring = strings.clone_to_cstring(string(geometry_data))
+        geometry = GL.CreateShader(GL.GEOMETRY_SHADER)
+        GL.ShaderSource(geometry, 1, &geometry_shader_code, nil)
+        GL.CompileShader(geometry)
+        check_compile_errors(geometry, "GEOMETRY")
+        GL.AttachShader(shader.id, geometry)
+        GL.DeleteShader(geometry)
+    }
+
     GL.LinkProgram(shader.id)
-    check_compile_errors(shader.id, "PROGRAM");
+    check_compile_errors(shader.id, "PROGRAM")
 
     GL.DeleteShader(vertex)
     GL.DeleteShader(fragment)

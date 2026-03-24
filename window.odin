@@ -53,6 +53,7 @@ framebuffer_size_callback :: proc(engine: ^Engine, width, height: i32) {
 }
 
 cleanup :: proc(engine: ^Engine) {
+    delete(engine.terrain_heights)
     SDL.GL_DestroyContext(engine.gl_context)
     SDL.DestroyWindow(engine.window)
     SDL.Quit()

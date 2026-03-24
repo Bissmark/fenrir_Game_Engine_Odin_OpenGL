@@ -21,15 +21,15 @@ Camera :: struct {
 
 init_camera :: proc(camera: ^Camera) -> bool {
     camera.position = {0.0, 20.0, 3.0}
-    camera.target = {0.0, 0.0, 0.0}
+    //camera.target = {0.0, 0.0, 0.0}
     camera.direction = linalg.normalize(camera.position - camera.target)
     camera.up = {0.0, 1.0, 0.0}
     camera.front = {0.0, 0.0, -1.0}
     camera.camera_right = linalg.normalize(linalg.cross(camera.up, camera.direction))
     camera.camera_up = linalg.cross(camera.direction, camera.camera_right)
-    camera.speed = 5.0
-    camera.yaw = -90.0
-    camera.pitch = 0.0
+    camera.speed = 25.0
+    camera.yaw = 30.0
+    camera.pitch = -25.0
     camera.fov = 45.0
 
     // camera.view = linalg.matrix4_look_at_f32(vec3{0.0, 0.0, 3.0}, vec3{0.0, 0.0, 0.0}, vec3{0.0, 1.0, 0.0})

@@ -32,3 +32,7 @@ draw_object :: proc(gameobject: ^GameObject) {
         GL.DrawArrays(GL.TRIANGLES, 0, gameobject.mesh.vertex_count)
     }
 }
+
+move_sun :: proc(engine: ^Engine, gameobject: ^GameObject) {
+    gameobject.position.x += 5.0 * engine.delta_time
+}

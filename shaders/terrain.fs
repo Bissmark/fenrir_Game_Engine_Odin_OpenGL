@@ -1,18 +1,20 @@
 #version 330 core
 out vec4 FragColor;
 
-in vec3 FragPos;
-in vec3 Normal;
+in vec3 gFragPos;
+in vec3 gNormal;
+in vec2 gTexCoords;
 
 uniform vec3 lightPos;
 uniform vec3 lightColor;
+uniform vec3 viewPos;
 
 void main()
 {
     // --- Height based colour ---
     // FragPos.y is the world height of this fragment, divided by max_height
     // to get a 0..1 range. Adjust the divisor to match your max_height * scale.
-    float height = clamp(FragPos.y / 30.0, 0.0, 1.0);
+    float height = clamp(gFragPos.y / 60.0, 0.0, 1.0);
 
     vec3 grassColor  = vec3(0.2,  0.55, 0.15);
     vec3 rockColor   = vec3(0.4,  0.35, 0.3);
@@ -34,10 +36,21 @@ void main()
     float ambientStrength = 0.3;
     vec3 ambient = ambientStrength * lightColor;
 
-    vec3 norm     = normalize(Normal);
-    vec3 lightDir = normalize(lightPos - FragPos);
+    vec3 norm     = normalize(gNormal);
+    vec3 lightDir = normalize(lightPos - gFragPos);
     float diff    = max(dot(norm, lightDir), 0.0);
     vec3 diffuse  = diff * lightColor;
 
-    FragColor = vec4((ambient + diffuse) * terrainColor, 1.0);
+    vec3 result = (ambient + diffuse) * terrainColor;
+
+    // --- Fog ---
+    float fogStart = 60.0;   // distance where fog begins
+    float fogEnd   = 150.0;  // distance where fog is fully opaque
+    vec3  fogColor = vec3(0.2, 0.3, 0.3);  // match your GL.ClearColor
+
+    float dist      = length(viewPos - gFragPos);
+    float fogFactor = clamp((fogEnd - dist) / (fogEnd - fogStart), 0.0, 1.0);
+
+    vec3 finalColor = mix(fogColor, result, fogFactor);
+    FragColor = vec4(finalColor, 1.0);
 }
