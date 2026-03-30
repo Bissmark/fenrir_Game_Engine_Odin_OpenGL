@@ -48,13 +48,12 @@ _lerp :: proc(t, a, b: f32) -> f32 {
 }
 
 _grad :: proc(hash: u8, x, y: f32) -> f32 {
-    switch hash & 3 {
-        case 0: return  x + y
-        case 1: return -x + y
-        case 2: return  x - y
-        case 3: return -x - y
-    }
-    return 0
+    h := hash & 3
+    u := x if h < 2 else y
+    v := y if h < 2 else x
+    ux := u if (h & 1) == 0 else -u
+    vx := v if (h & 2) == 0 else -v
+    return ux + vx
 }
 
 smoothstep :: proc(edge0, edge1, x: f32) -> f32 {
@@ -98,4 +97,18 @@ fbm :: proc(x, y: f32, octaves: int = 6, frequency: f32 = 1.0, amplitude: f32 = 
 
     // Normalize to roughly -1..1
     return value / max_value
+}
+
+sample_height :: proc(x, z: f32) -> f32 {
+    // Low frequency, low amplitude - gently rolling flatlands
+    flatland := (fbm(x * 0.05, z * 0.05) + 1.0) * 0.4 * 0.45
+
+    // Mask controls WHERE mountains appear - higher thresholds = rarer mountains
+    mask := (fbm(x * 0.03, z * 0.03) + 1.0) * 0.5
+    t    := smoothstep(0.65, 0.85, mask)  // was 0.55, 0.75 - now mountains need a stronger mask signal
+
+    // Mountains only where mask is high
+    mountain := (fbm(x * 0.03, z * 0.03) + 1.0) * 0.5
+
+    return _lerp(flatland * 2.0, mountain * 25.0, t)
 }

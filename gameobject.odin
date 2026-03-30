@@ -7,25 +7,24 @@ GameObject :: struct {
     position: vec3,
     rotation_axis: vec3,
     rotation_angle: f32,
+    orientation: quaternion128,
     scale: vec3,
 
     mesh: ^Mesh,
     shader: ^Shader,
 }
 
-draw_object :: proc(gameobject: ^GameObject) {
+draw_object :: proc(engine: ^Engine, gameobject: ^GameObject) {
     use(gameobject.shader)
 
-    translate := linalg.matrix4_translate_f32(gameobject.position)
-    angle: f32 = gameobject.rotation_angle
-    rotate := linalg.matrix4_rotate_f32(linalg.to_radians(angle), gameobject.rotation_axis)
-    scale := linalg.matrix4_scale_f32(gameobject.scale)
-    model := translate * rotate * scale
+    translate  := linalg.matrix4_translate_f32(gameobject.position)
+    rotate     := linalg.matrix4_from_quaternion_f32(gameobject.orientation)
+    scale      := linalg.matrix4_scale_f32(gameobject.scale)
+    model      := translate * rotate * scale
     flat_model := linalg.matrix_flatten(model)
     GL.UniformMatrix4fv(gameobject.shader.loc_model, 1, GL.FALSE, &flat_model[0])
 
     GL.BindVertexArray(gameobject.mesh.VAO)
-
     if gameobject.mesh.use_indices {
         GL.DrawElements(GL.TRIANGLES, gameobject.mesh.vertex_count, GL.UNSIGNED_INT, nil)
     } else {

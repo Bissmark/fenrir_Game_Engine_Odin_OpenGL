@@ -42,10 +42,6 @@ upload_mesh :: proc(mesh: ^Mesh) -> bool {
     return true
 }
 
-fractal_brownian_motion :: proc() {
-
-}
-
 create_mesh_cube :: proc(mesh: ^Mesh) {
     mesh.vertices = {
         // positions          // texture coords
@@ -206,8 +202,35 @@ append_vertex :: proc(mesh: ^Mesh, pos, normal: vec3) {
     append(&mesh.vertices, normal.x)
     append(&mesh.vertices, normal.y)
     append(&mesh.vertices, normal.z)
-    append(&mesh.vertices, pos.x)  // use x/z as tex coords
+    append(&mesh.vertices, pos.x)
     append(&mesh.vertices, pos.z)
+}
+
+get_terrain_height :: proc(engine: ^Engine, wx, wz: f32) -> f32 {
+    BAKE_SIZE :: 256
+
+    x := clamp((wx + 50.0) / 100.0, 0.0, 1.0)
+    z := clamp((wz + 50.0) / 100.0, 0.0, 1.0)
+
+    fx := x * f32(BAKE_SIZE - 1)
+    fz := z * f32(BAKE_SIZE - 1)
+
+    i0 := u32(fx)
+    j0 := u32(fz)
+    i1 := min(i0 + 1, u32(BAKE_SIZE - 1))
+    j1 := min(j0 + 1, u32(BAKE_SIZE - 1))
+
+    tx := fx - f32(i0)
+    tz := fz - f32(j0)
+
+    h00 := engine.terrain_heights[i0 * BAKE_SIZE + j0]
+    h10 := engine.terrain_heights[i1 * BAKE_SIZE + j0]
+    h01 := engine.terrain_heights[i0 * BAKE_SIZE + j1]
+    h11 := engine.terrain_heights[i1 * BAKE_SIZE + j1]
+
+    h0 := h00 + tx * (h10 - h00)
+    h1 := h01 + tx * (h11 - h01)
+    return h0 + tz * (h1 - h0)
 }
 
 cleanup_mesh :: proc(mesh: ^Mesh) {

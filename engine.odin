@@ -19,6 +19,7 @@ Engine :: struct {
     camera: Camera,
     light: Light,
     scene: Scene,
+    rigidbody: Rigidbody,
 
     wireframe: bool,
     last_time: f32,
@@ -26,6 +27,9 @@ Engine :: struct {
 
     terrain_mesh: Mesh,
     terrain_heights: []f32,
+    heightmap_texture: u32,
+
+    player: GameObject,
 }
 
 Scene :: struct {
@@ -34,7 +38,7 @@ Scene :: struct {
 }
 
 cube_positions := [10]vec3 {
-    vec3{0.0, 0.0, 0.0},
+    vec3{0.0, 20.0, 0.0},
     vec3{ 2.0,  5.0, -15.0},
     vec3{-1.5, -2.2, -2.5},
     vec3{-3.8, -2.0, -12.3},
@@ -90,7 +94,6 @@ main_loop :: proc(engine: ^Engine) {
         projection := linalg.matrix4_perspective_f32(f32(linalg.to_radians(engine.camera.fov)), f32(SCREEN_WIDTH) / f32(SCREEN_HEIGHT), 0.1, 100.0)
         flat_projection := linalg.matrix_flatten(projection)
         GL.UniformMatrix4fv(engine.shader.loc_projection, 1, GL.FALSE, &flat_projection[0])
-        // set_mat4(&engine.shader, "projection", &projection)
 
         // Bind diffuse Map
         GL.ActiveTexture(GL.TEXTURE0);
@@ -102,27 +105,36 @@ main_loop :: proc(engine: ^Engine) {
 
         // Light shader uniforms
         use(&engine.light_shader)
-        GL.UniformMatrix4fv(engine.light_shader.loc_view,       1, GL.FALSE, &flat_view[0])
+        GL.UniformMatrix4fv(engine.light_shader.loc_view, 1, GL.FALSE, &flat_view[0])
         GL.UniformMatrix4fv(engine.light_shader.loc_projection, 1, GL.FALSE, &flat_projection[0])
 
         // Terrain shader uniforms
         use(&engine.terrain_shader)
-        GL.UniformMatrix4fv(engine.terrain_shader.loc_view,       1, GL.FALSE, &flat_view[0])
+        GL.ActiveTexture(GL.TEXTURE2)
+        GL.BindTexture(GL.TEXTURE_2D, engine.heightmap_texture)
+        set_int(&engine.terrain_shader, "heightmap", 2)
+        GL.UniformMatrix4fv(engine.terrain_shader.loc_view, 1, GL.FALSE, &flat_view[0])
         GL.UniformMatrix4fv(engine.terrain_shader.loc_projection, 1, GL.FALSE, &flat_projection[0])
         set_vec3(&engine.terrain_shader, "lightPos",   &engine.light.position)
         set_vec3(&engine.terrain_shader, "lightColor", &engine.light.diffuse_color)
         set_vec3(&engine.terrain_shader, "viewPos", &engine.camera.position)
 
-        terrain_color := vec3{0.2, 0.6, 0.15}
-        set_vec3(&engine.terrain_shader, "terrainColor", &terrain_color)
+        // terrain_color := vec3{0.2, 0.6, 0.15}
+        // set_vec3(&engine.terrain_shader, "terrainColor", &terrain_color)
 
         // Draw gameobjects into the scene
         for &obj in engine.scene.objects {
-            draw_object(&obj)
+            draw_object(engine, &obj)
         }
 
         //move_sun(engine, &engine.scene.objects[11])
-        
+
+        update_movement(engine, &engine.rigidbody)
+        // fmt.println("player y:", engine.rigidbody.position.y, "terrain y:", get_terrain_height(engine, engine.rigidbody.position.x, engine.rigidbody.position.z))
+        engine.player.position = engine.rigidbody.position + vec3{0.0, 0.5, 0.0}
+        engine.player.orientation = engine.rigidbody.orientation
+        draw_object(engine, &engine.player)
+
         update_camera(&engine.camera)
         update_keyboard_input(engine, &engine.camera)
         
@@ -138,62 +150,65 @@ run :: proc(engine: ^Engine) {
     
     if !init_window(engine) do return
     fmt.println("window ok")
+
     if !init_shader(&engine.shader, "shaders/transform.vs", "shaders/shader.fs") do return
     engine.shader.loc_view = GL.GetUniformLocation(engine.shader.id, "view")
     engine.shader.loc_model = GL.GetUniformLocation(engine.shader.id, "model")
     engine.shader.loc_projection = GL.GetUniformLocation(engine.shader.id, "projection")
     fmt.println("shader ok") 
+
     if !init_shader(&engine.light_shader, "shaders/light.vs", "shaders/light.fs") do return
     fmt.println("light shader ok")
     engine.light_shader.loc_view = GL.GetUniformLocation(engine.light_shader.id, "view")
     engine.light_shader.loc_model = GL.GetUniformLocation(engine.light_shader.id, "model")
     engine.light_shader.loc_projection = GL.GetUniformLocation(engine.light_shader.id, "projection")
+
     if !init_shader(&engine.terrain_shader, "shaders/terrain.vs", "shaders/terrain.fs", "shaders/terrain.gs") do return
-    // fmt.println("terrain shader ok id: ", engine.terrain_shader.id)
     engine.terrain_shader.loc_view = GL.GetUniformLocation(engine.terrain_shader.id, "view")
     engine.terrain_shader.loc_model = GL.GetUniformLocation(engine.terrain_shader.id, "model")
     engine.terrain_shader.loc_projection = GL.GetUniformLocation(engine.terrain_shader.id, "projection")
     fmt.println("terrain loc_model:", engine.terrain_shader.loc_model)
     fmt.println("terrain loc_view:", engine.terrain_shader.loc_view)
     fmt.println("terrain loc_projection:", engine.terrain_shader.loc_projection)
+
     create_mesh_cube(&engine.mesh)
-    // create_mesh_terrain(&engine.terrain_mesh, 100, 100, 2.0, 100.0)
-    create_mesh_terrain(&engine.terrain_mesh, 100, 100) //, 2.0, 100.0)
+    create_mesh_terrain(&engine.terrain_mesh, 100, 100)
     fmt.println("mesh ok")
+
     if !init_light(&engine.light) do return
     fmt.printfln("light ok")
+
     if !init_texture(&engine.texture) do return
     fmt.println("texture ok")
+
     if !init_camera(&engine.camera) do return
     fmt.printfln("Camera ok")
 
-    // Allocate and fill CPU heightmap for gameplay use
-    engine.terrain_heights = make([]f32, 256 * 256)
-    for i: u32 = 0; i < 256; i += 1 {
-        for j: u32 = 0; j < 256; j += 1 {
-            x := f32(i) / 256.0  // 0..1
-            z := f32(j) / 256.0
-
-            flatland := (fbm(x * 2.0,  z * 2.0)  + 1.0) * 0.5 * 0.05
-            mask     := (fbm(x * 1.0,  z * 1.0)  + 1.0) * 0.5
-            t        := smoothstep(0.55, 0.75, mask)
-            mountain := math.pow((fbm(x * 2.5, z * 2.5) + 1.0) * 0.5, f32(1.5))
-
-            engine.terrain_heights[i * 256 + j] = _lerp(flatland * 4.0, mountain * 40.0, t)
-        }
-    }
+    generate_terrain_heights(engine)
 
     // Creating GameObjects
     terrain := GameObject {
-        position = vec3{-50.0, 0.0, -50.0},
-        rotation_angle = 0,
-        rotation_axis = vec3{0.0, 1.0, 0.0},
-        scale = vec3{1.0, 1.0, 1.0},
-        mesh = &engine.terrain_mesh,
-        shader = &engine.terrain_shader
+        position       = vec3{-50.0, 0.0, -50.0},
+        orientation    = linalg.QUATERNIONF32_IDENTITY,
+        scale          = vec3{1.0, 1.0, 1.0},
+        mesh           = &engine.terrain_mesh,
+        shader         = &engine.terrain_shader,
     }
     append(&engine.scene.objects, terrain)
 
+    engine.rigidbody.position = vec3{0.0, 20.0, 0.0}
+    engine.rigidbody.isGrounded = false
+    engine.rigidbody.orientation = linalg.QUATERNIONF32_IDENTITY
+
+    engine.player = GameObject {
+        position = engine.rigidbody.position,
+        rotation_angle = 0,
+        rotation_axis = vec3{0.0, 1.0, 0.0},
+        scale = vec3{1.0, 1.0, 1.0},
+        mesh = &engine.mesh,
+        shader = &engine.shader
+    }
+    //append(&engine.scene.objects, player)
 
     for i: u32 = 0; i < 10; i += 1 {
         cubes := GameObject {
@@ -217,7 +232,11 @@ run :: proc(engine: ^Engine) {
     }
     append(&engine.scene.objects, light)
 
+    //fmt.printfln("What objects are in the scene: ", len(engine.scene.objects))
+
     main_loop(engine)
     cleanup(engine)
     cleanup_mesh(&engine.mesh)
+    GL.DeleteTextures(1, &engine.heightmap_texture)
+    delete(engine.terrain_heights)
 }
